@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe-coded vs. Engineered</title>
+<meta name="description" content="One local 2B model builds the same to-do app twice: from a one-line prompt, and from a full specification.">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+<style>
+  :root {
+    --bg: #08090a;
+    --panel: #0f1011;
+    --raised: #151617;
+    --line: rgba(255, 255, 255, 0.07);
+    --line-strong: rgba(255, 255, 255, 0.12);
+    --text: #f7f8f8;
+    --dim: #8a8f98;
+    --faint: #62666d;
+    --bad: #eb5757;
+    --good: #4cb782;
+    --sans: "Inter", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0; color: var(--text); font: 15px/1.6 var(--sans);
+    -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01";
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid #5e6ad2; outline-offset: 2px; border-radius: 6px; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero */
+  .hero { padding: 112px 0 64px; text-align: center; }
+  .hero h1 {
+    margin: 0 auto; max-width: 820px; font-size: clamp(40px, 6.4vw, 72px); line-height: 1.04;
+    font-weight: 600; letter-spacing: -0.035em;
+  }
+  .hero h1 span { color: var(--faint); }
+  .hero p { margin: 22px auto 0; max-width: 520px; color: var(--dim); font-size: 17px; letter-spacing: -0.01em; }
+
+  /* Side-by-side apps */
+  .duel { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .pane figcaption {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    margin-bottom: 12px; padding: 0 2px; font-size: 14px; font-weight: 500;
+  }
+  .pane figcaption span { font-size: 13px; font-weight: 400; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .pane figcaption b { font-weight: 500; }
+  .pane figcaption b.bad { color: var(--bad); }
+  .pane figcaption b.good { color: var(--good); }
+  .pane { margin: 0; }
+  .pane iframe {
+    display: block; width: 100%; height: 560px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff;
+  }
+
+  /* Sections */
+  section.block { padding: 96px 0 0; }
+  .label { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  .label h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em; }
+
+  .seg { display: inline-flex; padding: 3px; border-radius: 9px; background: var(--raised); border: 1px solid var(--line); }
+  .seg button {
+    border: 0; background: none; cursor: pointer; font-size: 13px; color: var(--dim);
+    padding: 5px 12px; border-radius: 6px; transition: color .15s, background .15s;
+  }
+  .seg button[aria-pressed="true"] { background: rgba(255, 255, 255, .08); color: var(--text); }
+
+  /* Code viewer */
+  .viewer {
+    display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: 640px;
+    border: 1px solid var(--line-strong); border-radius: 14px; overflow: hidden; background: var(--panel);
+  }
+  .code { position: relative; overflow: auto; padding: 14px 0; font: 12.5px/20px var(--mono); font-variant-ligatures: none; color: #c9ccd1; }
+  .code .l { display: flex; white-space: pre; min-width: max-content; padding-right: 24px; transition: background .2s; }
+  .code .n { flex: 0 0 56px; padding-right: 18px; text-align: right; color: #3f4247; user-select: none; }
+  .code .l.flag { background: rgba(235, 87, 87, .08); box-shadow: inset 2px 0 var(--bad); }
+  .code .l.flag .n { color: var(--bad); }
+  .code .l.flag.minor { background: rgba(255, 255, 255, .035); box-shadow: inset 2px 0 var(--faint); }
+  .code .l.flag.minor .n { color: var(--dim); }
+  .code .l.hot { background: rgba(235, 87, 87, .2); }
+  .code .l.flag.minor.hot { background: rgba(255, 255, 255, .09); }
+
+  .hljs-comment, .hljs-meta { color: #5c6168; }
+  .hljs-keyword, .hljs-literal, .hljs-built_in { color: #b4a2f5; }
+  .hljs-string, .hljs-regexp { color: #8fcf9f; }
+  .hljs-number { color: #f2b479; }
+  .hljs-title, .hljs-title.function_ { color: #7fb5f5; }
+  .hljs-attr, .hljs-attribute, .hljs-property { color: #e6c27a; }
+  .hljs-name, .hljs-selector-tag, .hljs-selector-class, .hljs-selector-pseudo, .hljs-selector-attr { color: #f08d9b; }
+
+  .issues { border-left: 1px solid var(--line); overflow: auto; }
+  .issues header { padding: 16px 18px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--dim); }
+  .issues header b { color: var(--text); font-weight: 500; }
+  .issues ol { list-style: none; margin: 0; padding: 0; }
+  .issue {
+    display: block; width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
+    padding: 14px 18px; border-bottom: 1px solid var(--line); transition: background .12s;
+  }
+  .issue:hover, .issue.on { background: rgba(255, 255, 255, .035); }
+  .issue .k { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--dim); letter-spacing: .02em; }
+  .issue .k::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--bad); }
+  .issue.minor .k::before { background: var(--faint); }
+  .issue .t { display: block; margin-top: 4px; font-size: 14px; font-weight: 500; letter-spacing: -0.01em; }
+  .issue .d { display: block; margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--dim); }
+  .clean { padding: 18px; font-size: 13px; color: var(--dim); }
+
+  /* Prompts */
+  .prompts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  .prompt { border: 1px solid var(--line-strong); border-radius: 14px; background: var(--panel); overflow: hidden; }
+  .prompt header { display: flex; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 500; }
+  .prompt header span { color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+  .prompt pre {
+    margin: 0; padding: 18px; white-space: pre-wrap; font: 12.5px/1.7 var(--mono); color: #b6bac1;
+    max-height: 560px; overflow: auto; font-variant-ligatures: none;
+  }
+
+  footer.end { padding: 96px 0 48px; color: var(--faint); font-size: 13px; text-align: center; }
+  footer.end a { color: var(--dim); transition: color .15s; }
+  footer.end a:hover { color: var(--text); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { opacity: 0; transform: translateY(12px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+    .reveal.in { opacity: 1; transform: none; }
+  }
+
+  @media (max-width: 900px) {
+    .duel, .prompts { grid-template-columns: 1fr; }
+    .viewer { grid-template-columns: 1fr; grid-template-rows: 420px auto; height: auto; }
+    .issues { border-left: 0; border-top: 1px solid var(--line); max-height: 420px; }
+    .hero { padding: 64px 0 48px; }
+    section.block { padding-top: 72px; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <h1>Same model. <span>Different prompt.</span></h1>
+    <p>Gemma 4 E2B, running locally, builds the same to-do app twice.</p>
+  </section>
+
+  <div class="duel reveal">
+    <figure class="pane">
+      <figcaption>Vibe-coded <span id="stats-vibe"></span></figcaption>
+      <iframe title="Vibe-coded app" data-app="vibe"></iframe>
+    </figure>
+    <figure class="pane">
+      <figcaption>Engineered <span id="stats-agentic"></span></figcaption>
+      <iframe title="Engineered app" data-app="agentic"></iframe>
+    </figure>
+  </div>
+
+  <section class="block reveal">
+    <div class="label">
+      <h2>Code</h2>
+      <div class="seg" role="group" aria-label="Version">
+        <button data-version="vibe" aria-pressed="true">Vibe-coded</button>
+        <button data-version="agentic" aria-pressed="false">Engineered</button>
+      </div>
+    </div>
+    <div class="viewer">
+      <div class="code" id="code" aria-label="Source code"></div>
+      <aside class="issues">
+        <header id="issues-head"></header>
+        <ol id="issues"></ol>
+      </aside>
+    </div>
+  </section>
+
+  <section class="block reveal">
+    <div class="label"><h2>Prompts</h2></div>
+    <div class="prompts">
+      <article class="prompt"><header>Vibe-coded <span id="words-vibe"></span></header><pre id="prompt-vibe"></pre></article>
+      <article class="prompt"><header>Engineered <span id="words-agentic"></span></header><pre id="prompt-agentic"></pre></article>
+    </div>
+  </section>
+
+  <footer class="end">Written entirely by the model, on-device. Each app is the best of 9 runs of its prompt. <a href="https://github.com/rexmhall09/todo-list-experiment">Source</a></footer>
+</div>
+
+<script>
+// Everything the page knows about each version. Issues come from human review;
+// test scores from the same 12 behavioural tests (tests/index.html) run against both apps.
+const VERSIONS = {
+  vibe: {
+    app: "vibe-coded/index.html",
+    prompt: "prompts/vibe-coded.md",
+    storageKey: "todoTasks",
+    toStored: (tasks) => tasks.map(({ text, completed }) => ({ text, completed })),
+    tests: [9, 12],
+    issues: [
+      { lines: [381, 384], kind: "Bug", title: "Filtering deletes your tasks",
+        note: "Active and Completed overwrite the task array, so switching filters throws tasks away for good." },
+      { lines: [274, 327, 359], kind: "Security", title: "User text injected as HTML",
+        note: "Task text goes straight into innerHTML. A task can run script, and a quote breaks the edit field." },
+      { lines: [273], kind: "Bug", title: "Click-to-edit is a syntax error",
+        note: "A stray } in the inline handler means clicking task text throws instead of editing." },
+      { lines: [398], kind: "Bug", title: "Enter doesn't add a task",
+        note: "Only the button's click is wired up. There is no form." },
+      { lines: [241], kind: "Bug", title: "No guard on saved data",
+        note: "JSON.parse runs without try/catch or validation." },
+      { lines: [266, 304, 320], kind: "Bug", title: "Array index used as identity",
+        note: "Tasks are addressed by position and DOM order, so handlers can point at the wrong task." },
+      { lines: [214, 215, 216], kind: "A11y", title: "Filters are divs",
+        note: "Not focusable or announced as buttons, so keyboard users can't filter." },
+      { lines: [119, 127], kind: "Missing", title: "No animations",
+        note: "Asked for, never built. Only hover transitions exist." },
+      { lines: [290, 339], kind: "UX", title: "alert() for validation",
+        note: "Blocking browser dialogs for an empty field." },
+      { lines: [326, 327, 328, 329], kind: "Quality", title: "Inline styles, duplicate id",
+        note: "Edit mode hardcodes styles in a template string and reuses id=\"editInput\". No Enter or Escape." },
+      { lines: [6, 26, 204], kind: "Design", title: "Generic AI styling",
+        note: "Emoji title, gradient background, coloured stripes, filled pill buttons." },
+    ],
+  },
+  agentic: {
+    app: "agentic/index.html",
+    prompt: "prompts/agentic.md",
+    storageKey: "todos.v1",
+    toStored: (tasks) => tasks.map((task) => ({ id: crypto.randomUUID(), ...task })),
+    tests: [12, 12],
+    issues: [
+      { lines: [9, 10, 19], kind: "Missing", title: "No dark mode",
+        note: "The spec gave dark-mode tokens under prefers-color-scheme. The block was left out." },
+      { lines: [286, 287, 288, 289], kind: "UX", title: "Focus ring on the edit field",
+        note: "The rule hiding the outline on the inline edit field was skipped, so a box appears around it while editing." },
+      { lines: [363, 367, 376, 384, 390, 424, 430, 461, 528], kind: "Style", title: "No “why” comments",
+        note: "The spec asked for one line above every function explaining why it exists. None were written." },
+      { lines: [362, 363, 367, 376], kind: "Style", title: "Storage under the wrong header",
+        note: "The validation and storage functions sit under Pure updates instead of Data." },
+      { lines: [604, 605, 606, 607, 619], kind: "Style", title: "Init wrapped in a function",
+        note: "The spec asked for two plain lines; the model added init() and moved the listeners into Init." },
+    ],
+  },
+};
+
+const SAMPLE_TASKS = [
+  { text: "Book flights for the offsite", completed: false },
+  { text: "Review the Q3 roadmap draft", completed: false },
+  { text: "Call the dentist", completed: true },
+  { text: "Water the plants", completed: false },
+];
+
+const MINOR_KINDS = new Set(["Style", "Design", "Quality", "UX"]);
+const isMinor = (issue) => MINOR_KINDS.has(issue.kind);
+const cache = new Map();
+
+// Fetch each file once; the code viewer and the stats share it.
+function load(path) {
+  if (!cache.has(path)) cache.set(path, fetch(path).then((response) => response.text()));
+  return cache.get(path);
+}
+
+// Both apps open with the same four tasks on every visit, so they can be compared at a glance.
+function openApp(name) {
+  const version = VERSIONS[name];
+  try {
+    localStorage.setItem(version.storageKey, JSON.stringify(version.toStored(SAMPLE_TASKS)));
+  } catch {}
+  document.querySelector(`iframe[data-app="${name}"]`).src = version.app;
+}
+
+function renderStats(name) {
+  const [passed, total] = VERSIONS[name].tests;
+  const bugs = VERSIONS[name].issues.filter((issue) => !isMinor(issue)).length;
+  document.getElementById(`stats-${name}`).innerHTML =
+    `<b class="${passed === total ? "good" : "bad"}">${passed}/${total}</b> tests · ` +
+    `<b class="${bugs ? "bad" : "good"}">${bugs}</b> ${bugs === 1 ? "bug" : "bugs"}`;
+}
+
+// highlight.js returns one HTML string; split it into lines, re-opening spans that cross a line break.
+function highlightLines(source) {
+  const html = window.hljs ? hljs.highlight(source, { language: "xml" }).value : escapeHtml(source);
+  const lines = [];
+  const open = [];
+  for (const raw of html.split("\n")) {
+    const line = open.join("") + raw;
+    for (const tag of raw.match(/<span[^>]*>|<\/span>/g) ?? []) {
+      if (tag === "</span>") open.pop(); else open.push(tag);
+    }
+    lines.push(line + "</span>".repeat(open.length));
+  }
+  return lines;
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char]);
+}
+
+async function renderCode(name) {
+  const version = VERSIONS[name];
+  const source = (await load(version.app)).trimEnd();
+  const severity = new Map();
+  for (const issue of version.issues) {
+    for (const line of issue.lines) {
+      if (!severity.has(line) || !isMinor(issue)) severity.set(line, isMinor(issue) ? "l flag minor" : "l flag");
+    }
+  }
+  const code = document.getElementById("code");
+  code.innerHTML = highlightLines(source)
+    .map((html, index) => `<div class="${severity.get(index + 1) ?? "l"}"><span class="n">${index + 1}</span><span>${html || " "}</span></div>`)
+    .join("");
+  code.scrollTop = 0;
+
+  const bugs = version.issues.filter((issue) => !isMinor(issue)).length;
+  const nits = version.issues.length - bugs;
+  document.getElementById("issues-head").innerHTML = version.issues.length
+    ? `<b>${bugs}</b> ${bugs === 1 ? "bug" : "bugs"}` + (nits ? ` · <b>${nits}</b> ${nits === 1 ? "nit" : "nits"}` : "")
+    : "<b>0</b> bugs";
+
+  const list = document.getElementById("issues");
+  if (!version.issues.length) {
+    list.innerHTML = `<li class="clean">Nothing flagged in review.</li>`;
+    return;
+  }
+  list.replaceChildren(...version.issues.map((issue) => {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.className = isMinor(issue) ? "issue minor" : "issue";
+    for (const [className, value] of [["k", issue.kind], ["t", issue.title], ["d", issue.note]]) {
+      const span = document.createElement("span");
+      span.className = className;
+      span.textContent = value;
+      button.append(span);
+    }
+    button.addEventListener("click", () => focusIssue(issue, button));
+    item.append(button);
+    return item;
+  }));
+}
+
+function focusIssue(issue, button) {
+  const code = document.getElementById("code");
+  document.querySelectorAll(".issue.on, .l.hot").forEach((element) => element.classList.remove("on", "hot"));
+  button.classList.add("on");
+  issue.lines.forEach((line) => code.children[line - 1]?.classList.add("hot"));
+  const first = code.children[issue.lines[0] - 1];
+  if (first) code.scrollTo({ top: first.offsetTop - code.clientHeight / 3, behavior: "smooth" });
+}
+
+async function renderPrompt(name) {
+  const text = (await load(VERSIONS[name].prompt)).trim();
+  document.getElementById(`prompt-${name}`).textContent = text;
+  const words = text.split(/\s+/).length;
+  document.getElementById(`words-${name}`).textContent = `${words.toLocaleString()} words`;
+}
+
+function selectVersion(name) {
+  document.querySelectorAll("[data-version]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.version === name));
+  });
+  renderCode(name);
+}
+
+document.querySelectorAll("[data-version]").forEach((button) =>
+  button.addEventListener("click", () => selectVersion(button.dataset.version)));
+
+const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+  if (entry.isIntersecting) { entry.target.classList.add("in"); observer.unobserve(entry.target); }
+}), { threshold: 0.05 });
+document.querySelectorAll(".reveal").forEach((element) => observer.observe(element));
+
+for (const name of Object.keys(VERSIONS)) {
+  openApp(name);
+  renderStats(name);
+  renderPrompt(name);
+}
+window.addEventListener("DOMContentLoaded", () => selectVersion("vibe"));
+</script>
+</body>
+</html>

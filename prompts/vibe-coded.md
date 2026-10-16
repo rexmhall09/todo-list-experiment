@@ -1,0 +1,1 @@
+Build me a to-do list app. I want to be able to add tasks, check them off, delete them, edit them, and filter between all / active / completed. It should remember my tasks when I reload. Make it look really cool and modern with animations. Put everything in a single HTML file.

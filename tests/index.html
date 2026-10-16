@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Behaviour tests</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, Menlo, monospace; margin: 24px; }
+  iframe { width: 420px; height: 420px; border: 1px solid #ccc; }
+  .pass { color: #2f6f4f; } .fail { color: #b5482a; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<script>
+// The same behavioural checks run against both apps. An adapter maps each
+// action ("add a task", "edit row 0") onto that app's own markup.
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const ADAPTERS = {
+  agentic: {
+    path: "../agentic/index.html",
+    storageKey: "todos.v1",
+    texts: (d) => [...d.querySelectorAll(".todo .todo-text")].map((el) => el.textContent),
+    checked: (d, i) => d.querySelectorAll(".todo .todo-toggle")[i].checked,
+    type: (d, text) => { d.getElementById("composer-input").value = text; },
+    clickAdd: (d) => d.querySelector(".composer-add").click(),
+    // Real browsers submit a form when Enter is pressed in its only text field.
+    pressEnter: (d) => { const input = d.getElementById("composer-input"); if (input.form) input.form.requestSubmit(); },
+    toggle: (d, i) => d.querySelectorAll(".todo .todo-toggle")[i].click(),
+    remove: async (d, i) => { d.querySelectorAll(".todo .todo-delete")[i].click(); await wait(400); },
+    edit: async (d, i, text) => {
+      d.querySelectorAll(".todo .todo-text")[i].dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const input = d.querySelector(".todo-edit");
+      input.value = text;
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    },
+    filter: async (d, name) => { d.querySelector(`.filter[data-filter="${name}"]`).click(); await wait(80); },
+  },
+  vibe: {
+    path: "../vibe-coded/index.html",
+    storageKey: "todoTasks",
+    texts: (d) => [...d.querySelectorAll(".task-item .task-text")].map((el) => el.textContent.trim()),
+    checked: (d, i) => d.querySelectorAll(".task-item input[type=checkbox]")[i].checked,
+    type: (d, text) => { d.getElementById("taskInput").value = text; },
+    clickAdd: (d) => d.getElementById("addTaskBtn").click(),
+    pressEnter: (d) => {
+      const input = d.getElementById("taskInput");
+      for (const type of ["keydown", "keypress", "keyup"]) {
+        input.dispatchEvent(new KeyboardEvent(type, { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));
+      }
+      if (input.form) input.form.requestSubmit();
+    },
+    toggle: (d, i) => d.querySelectorAll(".task-item input[type=checkbox]")[i].click(),
+    remove: async (d, i) => { d.querySelectorAll(".task-item .delete-btn")[i].click(); await wait(400); },
+    edit: async (d, i, text) => {
+      d.querySelectorAll(".task-item .edit-btn")[i].click();
+      d.getElementById("editInput").value = text;
+      [...d.querySelectorAll(".task-item button")].find((b) => b.textContent.trim() === "Save").click();
+    },
+    filter: async (d, name) => { d.querySelector(`.filter-btn[data-filter="${name}"]`).click(); await wait(80); },
+  },
+};
+
+const TESTS = [
+  ["Adds a task with the button", async (app, d) => {
+    app.type(d, "Buy milk"); app.clickAdd(d);
+    return same(app.texts(d), ["Buy milk"]);
+  }],
+  ["Adds a task by pressing Enter", async (app, d) => {
+    app.type(d, "Buy milk"); app.pressEnter(d); await wait(50);
+    return same(app.texts(d), ["Buy milk"]);
+  }],
+  ["Ignores a blank task", async (app, d) => {
+    app.type(d, "   "); app.clickAdd(d);
+    return same(app.texts(d), []);
+  }],
+  ["Checks a task off", async (app, d) => {
+    await seed(app, d, ["A", "B"]); app.toggle(d, 1);
+    return !app.checked(d, 0) && app.checked(d, 1);
+  }],
+  ["Edits a task", async (app, d) => {
+    await seed(app, d, ["A", "B"]); await app.edit(d, 0, "A2");
+    return same(app.texts(d), ["A2", "B"]);
+  }],
+  ["Deletes the right task", async (app, d) => {
+    await seed(app, d, ["A", "B", "C"]); await app.remove(d, 1);
+    return same(app.texts(d), ["A", "C"]);
+  }],
+  ["Active filter shows only open tasks", async (app, d) => {
+    await seed(app, d, ["A", "B"]); app.toggle(d, 0); await app.filter(d, "active");
+    return same(app.texts(d), ["B"]);
+  }],
+  ["Completed filter shows only done tasks", async (app, d) => {
+    await seed(app, d, ["A", "B"]); app.toggle(d, 0); await app.filter(d, "completed");
+    return same(app.texts(d), ["A"]);
+  }],
+  ["Switching filters never loses tasks", async (app, d) => {
+    await seed(app, d, ["A", "B"]); app.toggle(d, 0);
+    await app.filter(d, "active"); await app.filter(d, "all");
+    return same(app.texts(d), ["A", "B"]);
+  }],
+  ["Remembers tasks after a reload", async (app, d, reload) => {
+    await seed(app, d, ["A", "B"]); app.toggle(d, 1);
+    const fresh = await reload();
+    return same(app.texts(fresh), ["A", "B"]) && app.checked(fresh, 1);
+  }],
+  ["Shows task text literally, never as HTML", async (app, d) => {
+    const text = "<img src=x onerror=\"parent.injected=true\"><b>bold</b>";
+    window.injected = false;
+    app.type(d, text); app.clickAdd(d); await wait(100);
+    return same(app.texts(d), [text]) && !window.injected && !d.querySelector(".todo-list b, #taskList b");
+  }],
+  ["Survives corrupt saved data", async (app, d, reload) => {
+    localStorage.setItem(app.storageKey, "{not json");
+    const fresh = await reload();
+    app.type(fresh, "Still works"); app.clickAdd(fresh);
+    return same(app.texts(fresh), ["Still works"]);
+  }],
+];
+
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+async function seed(app, d, texts) { for (const text of texts) { app.type(d, text); app.clickAdd(d); } }
+
+function load(path) {
+  return new Promise((resolve) => {
+    document.querySelector("iframe")?.remove();
+    const frame = document.createElement("iframe");
+    frame.onload = () => { frame.contentWindow.alert = () => {}; wait(50).then(() => resolve(frame.contentDocument)); };
+    frame.src = path + "?t=" + Date.now();
+    document.body.append(frame);
+  });
+}
+
+async function runSuite(name) {
+  const app = ADAPTERS[name];
+  const results = [];
+  for (const [title, test] of TESTS) {
+    localStorage.removeItem(app.storageKey);
+    const d = await load(app.path);
+    let passed = false, error = "";
+    try { passed = Boolean(await test(app, d, () => load(app.path))); } catch (e) { error = e.message; }
+    results.push({ title, passed, error });
+  }
+  localStorage.removeItem(app.storageKey);
+  return results;
+}
+
+(async () => {
+  const report = {};
+  for (const name of Object.keys(ADAPTERS)) report[name] = await runSuite(name);
+  window.report = report;
+  document.getElementById("out").innerHTML = Object.entries(report).map(([name, results]) =>
+    `${name}: ${results.filter((r) => r.passed).length}/${results.length}\n` +
+    results.map((r) => `  <span class="${r.passed ? "pass" : "fail"}">${r.passed ? "✓" : "✗"}</span> ${r.title} ${r.error}`).join("\n")
+  ).join("\n\n");
+})();
+</script>
+</body>
+</html>

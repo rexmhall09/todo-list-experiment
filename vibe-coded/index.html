@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✨ Modern To-Do Pro</title>
+    <style>
+        /* --- 1. CORE STYLES & RESET --- */
+        :root {
+            --primary-color: #6200EE; /* Deep Purple */
+            --secondary-color: #03DAC6; /* Teal Accent */
+            --background-light: #f4f7f9;
+            --text-dark: #333;
+            --card-bg: #ffffff;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--background-light) 0%, #e0e7ff 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+
+        /* --- 2. LAYOUT & CONTAINERS --- */
+        .container {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 15px 30px var(--shadow-light);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 25px;
+            font-size: 2.2em;
+            font-weight: 700;
+        }
+
+        /* --- 3. INPUT & CONTROLS --- */
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background: #fff;
+        }
+
+        #taskInput {
+            flex-grow: 1;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        #addTaskBtn {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        #addTaskBtn:hover {
+            background-color: #00b89a;
+            transform: translateY(-2px);
+        }
+
+        /* --- 4. FILTERING --- */
+        .filter-controls {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+
+        .filter-btn {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #f0f0f0;
+            transition: all 0.3s;
+        }
+
+        .filter-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 10px rgba(98, 0, 238, 0.4);
+        }
+
+        /* --- 5. TASK LIST --- */
+        #taskList {
+            list-style: none;
+            padding: 0;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            background: #f9f9f9;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s, background 0.3s;
+            cursor: pointer;
+            border-left: 5px solid var(--secondary-color);
+        }
+
+        .task-item.completed {
+            opacity: 0.6;
+            background: #e6ffe6;
+            border-left: 5px solid #4CAF50;
+        }
+
+        .task-item.editing {
+            border-left: 5px solid var(--primary-color);
+            background: #fff3e0;
+        }
+
+        .task-text {
+            flex-grow: 1;
+            margin-left: 15px;
+            font-size: 1.1em;
+            color: var(--text-dark);
+            word-break: break-word;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            border: none;
+            padding: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .delete-btn {
+            background: #ff6b6b;
+            color: white;
+        }
+        .delete-btn:hover {
+            background: #e55a5a;
+            transform: scale(1.05);
+        }
+
+        .edit-btn {
+            background: #ffc107;
+            color: var(--text-dark);
+        }
+        .edit-btn:hover {
+            background: #ff9800;
+            transform: scale(1.05);
+        }
+
+        .toggle-btn {
+            background: #4CAF50;
+            color: white;
+        }
+        .toggle-btn:hover {
+            background: #388E3C;
+            transform: scale(1.05);
+        }
+
+        /* --- 6. UTILITY & ANIMATIONS --- */
+        .empty-message {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>📝 To-Do Pro</h1>
+
+        <!-- Input Section -->
+        <div class="input-section">
+            <input type="text" id="taskInput" placeholder="Add a new task..." maxlength="100">
+            <button id="addTaskBtn">Add Task</button>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="filter-controls">
+            <div class="filter-btn active" data-filter="all">All</div>
+            <div class="filter-btn" data-filter="active">Active</div>
+            <div class="filter-btn" data-filter="completed">Completed</div>
+        </div>
+
+        <!-- Task List -->
+        <ul id="taskList">
+            <!-- Tasks will be injected here by JavaScript -->
+        </ul>
+        <p id="emptyMessage" class="empty-message" style="display: none;">Your list is empty! Add a task above.</p>
+    </div>
+
+    <script>
+        const taskInput = document.getElementById('taskInput');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const taskList = document.getElementById('taskList');
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const emptyMessage = document.getElementById('emptyMessage');
+
+        let tasks = [];
+        let currentFilter = 'all';
+
+        // --- 1. LOCAL STORAGE & INITIALIZATION ---
+
+        function loadTasks() {
+            const storedTasks = localStorage.getItem('todoTasks');
+            if (storedTasks) {
+                tasks = JSON.parse(storedTasks);
+            } else {
+                tasks = [];
+            }
+            renderTasks();
+        }
+
+        function saveTasks() {
+            localStorage.setItem('todoTasks', JSON.stringify(tasks));
+        }
+
+        // --- 2. RENDERING FUNCTIONS ---
+
+        function renderTasks() {
+            taskList.innerHTML = '';
+
+            if (tasks.length === 0) {
+                emptyMessage.style.display = 'block';
+                return;
+            }
+            emptyMessage.style.display = 'none';
+
+            tasks.forEach((task, index) => {
+                const listItem = document.createElement('li');
+                listItem.className = `task-item ${task.completed ? 'completed' : ''}`;
+                listItem.dataset.index = index;
+                listItem.dataset.id = index;
+
+                listItem.innerHTML = `
+                    <input type="checkbox" ${task.completed ? 'checked' : ''} 
+                           onchange="toggleTaskCompletion(${index}, this.checked)" 
+                           title="Toggle completion">
+                    <span class="task-text" onclick="startEdit(${index})}" title="Click to edit">
+                        ${task.text}
+                    </span>
+                    <div class="task-actions">
+                        <button class="action-btn delete-btn" onclick="deleteTask(${index})">Delete</button>
+                        <button class="action-btn edit-btn" onclick="startEdit(${index})">Edit</button>
+                    </div>
+                `;
+                taskList.appendChild(listItem);
+            });
+        }
+
+        // --- 3. CRUD OPERATIONS ---
+
+        function addTask() {
+            const text = taskInput.value.trim();
+            if (text === "") {
+                alert("Please enter a task description.");
+                return;
+            }
+
+            tasks.push({
+                text: text,
+                completed: false
+            });
+
+            taskInput.value = '';
+            saveTasks();
+            renderTasks();
+        }
+
+        function deleteTask(index) {
+            tasks.splice(index, 1);
+            saveTasks();
+            renderTasks();
+        }
+
+        function toggleTaskCompletion(index, isChecked) {
+            tasks[index].completed = isChecked;
+            saveTasks();
+            renderTasks();
+        }
+
+        function startEdit(index) {
+            const task = tasks[index];
+            
+            // 1. Create an editable input field
+            const listItem = taskList.children[index];
+            
+            listItem.classList.add('editing');
+            
+            const originalHTML = listItem.innerHTML;
+            
+            listItem.innerHTML = `
+                <input type="text" id="editInput" value="${task.text}" style="width: 100%; padding: 5px; border: 1px solid var(--primary-color); border-radius: 5px;">
+                <button onclick="saveEdit(${index})" style="background: var(--primary-color); color: white; border: none; padding: 5px 10px; border-radius: 5px;">Save</button>
+                <button onclick="cancelEdit(${index})" style="background: #ccc; color: var(--text-dark); border: none; padding: 5px 10px; border-radius: 5px;">Cancel</button>
+            `;
+        }
+
+        function saveEdit(index) {
+            const listItem = taskList.children[index];
+            const editInput = listItem.querySelector('#editInput');
+            const newText = editInput.value.trim();
+
+            if (newText === "") {
+                alert("Task cannot be empty!");
+                return;
+            }
+
+            tasks[index].text = newText;
+            listItem.classList.remove('editing');
+            saveTasks();
+            renderTasks();
+        }
+
+        function cancelEdit(index) {
+            const listItem = taskList.children[index];
+            // Revert to original state (or just remove the editing class)
+            listItem.classList.remove('editing');
+            // Re-render the original task data if needed, or just clear the input
+            listItem.innerHTML = `
+                <input type="checkbox" ${tasks[index].completed ? 'checked' : ''} 
+                       onchange="toggleTaskCompletion(${index}, this.checked)" 
+                       title="Toggle completion">
+                <span class="task-text" onclick="startEdit(${index})" title="Click to edit">
+                    ${tasks[index].text}
+                </span>
+                <div class="task-actions">
+                    <button class="action-btn delete-btn" onclick="deleteTask(${index})">Delete</button>
+                    <button class="action-btn edit-btn" onclick="startEdit(${index})">Edit</button>
+                </div>
+            `;
+        }
+
+
+        // --- 4. FILTERING LOGIC ---
+
+        function setFilter(filter) {
+            currentFilter = filter;
+            // Update button styles
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+
+            // Filter the list based on selection
+            if (filter === 'all') {
+                renderTasks(); // Show all
+            } else if (filter === 'active') {
+                tasks = tasks.filter(task => !task.completed);
+                renderTasks();
+            } else if (filter === 'completed') {
+                tasks = tasks.filter(task => task.completed);
+                renderTasks();
+            }
+        }
+
+        filterButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                setFilter(e.target.dataset.filter);
+            });
+        });
+
+
+        // --- 5. EVENT LISTENERS & SETUP ---
+
+        addTaskBtn.addEventListener('click', addTask);
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTasks();
+        });
+
+    </script>
+</body>
+</html>
